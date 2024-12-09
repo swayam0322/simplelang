@@ -3,49 +3,43 @@ using namespace std;
 
 typedef enum
 {
-    TOK_INTEGER,
-    TOK_IDENTIFIER,
-    TOK_NUMBER,
-    TOK_EQUAL,
-    TOK_PLUS,
-    TOK_MINUS,
-    TOK_STAR,
-    TOK_SLASH,
-    TOK_IF,
-    TOK_ELSE,
-    TOK_EQUAL_EQUAL,
-    TOK_BANG,
-    TOK_BANG_EQUAL,
-    TOK_GREATER,
-    TOK_GREATER_EQUAL,
-    TOK_LESS,
-    TOK_LESS_EQUAL,
-    TOK_LEFT_PAREN,
-    TOK_RIGHT_PAREN,
-    TOK_LEFT_BRACE,
-    TOK_RIGHT_BRACE,
-    TOK_SEMICOLON,
-    TOK_UNKNOWN,
-    TOK_EOF
+    TOK_INTEGER,       // 0
+    TOK_IDENTIFIER,    // 1
+    TOK_NUMBER,        // 2
+    TOK_EQUAL,         // 3
+    TOK_PLUS,          // 4
+    TOK_MINUS,         // 5
+    TOK_STAR,          // 6
+    TOK_SLASH,         // 7
+    TOK_IF,            // 8
+    TOK_ELSE,          // 9
+    TOK_EQUAL_EQUAL,   // 10
+    TOK_BANG,          // 11
+    TOK_BANG_EQUAL,    // 12
+    TOK_GREATER,       // 13
+    TOK_GREATER_EQUAL, // 14
+    TOK_LESS,          // 15
+    TOK_LESS_EQUAL,    // 16
+    TOK_LEFT_PAREN,    // 17
+    TOK_RIGHT_PAREN,   // 18
+    TOK_LEFT_BRACE,    // 19
+    TOK_RIGHT_BRACE,   // 20
+    TOK_SEMICOLON,     // 21
+    TOK_UNKNOWN,       // 22
+    TOK_EOF            // 23
 } TokenType;
 
 typedef struct
 {
     TokenType type;
-    optional<string> val;
+    string val;
 } Token;
-
-unordered_map<string, TokenType> keywords = {
-    {"int", TOK_INTEGER},
-    {"if", TOK_IF},
-    {"else", TOK_ELSE},
-};
 
 vector<Token> tokens;
 
-void addToken(TokenType t)
+void addToken(TokenType t, string s)
 {
-    tokens.push_back({.type = t});
+    tokens.push_back({.type = t, .val = s});
 }
 
 int main()
@@ -57,69 +51,113 @@ int main()
         return 1;
     }
 
-    for (auto c = istreambuf_iterator<char>(file); c != istreambuf_iterator<char>(); c++)
+    for (auto c = istreambuf_iterator<char>(file); c != istreambuf_iterator<char>();)
     {
         switch (*c)
         {
         case '(':
-            addToken(TOK_LEFT_PAREN);
+            addToken(TOK_LEFT_PAREN, "(");
+            c++;
             break;
         case ')':
-            addToken(TOK_RIGHT_PAREN);
+            addToken(TOK_RIGHT_PAREN, ")");
+            c++;
             break;
         case '{':
-            addToken(TOK_LEFT_BRACE);
+            addToken(TOK_LEFT_BRACE, "{");
+            c++;
             break;
         case '}':
-            addToken(TOK_RIGHT_BRACE);
+            addToken(TOK_RIGHT_BRACE, "}");
+            c++;
             break;
         case '-':
-            addToken(TOK_MINUS);
+            addToken(TOK_MINUS, "-");
+            c++;
             break;
         case '+':
-            addToken(TOK_PLUS);
+            addToken(TOK_PLUS, "+");
+            c++;
             break;
         case ';':
-            addToken(TOK_SEMICOLON);
+            addToken(TOK_SEMICOLON, ";");
+            c++;
             break;
         case '*':
-            addToken(TOK_STAR);
+            addToken(TOK_STAR, "*");
+            c++;
             break;
         case '/':
-            addToken(TOK_SLASH);
+            addToken(TOK_SLASH, "/");
+            c++;
             break;
         case '!':
-            addToken((*next(c, 1) == '=') ? TOK_BANG_EQUAL : TOK_BANG);
+            if (*next(c, 1) == '=')
+                addToken(TOK_BANG_EQUAL, "!=");
+            else
+                addToken(TOK_BANG, "!");
+            c++;
             break;
         case '=':
-            addToken((*next(c, 1) == '=') ? TOK_EQUAL_EQUAL : TOK_EQUAL);
+            c++;
+            if (*c == '=')
+                addToken(TOK_EQUAL_EQUAL, "==");
+            else
+                addToken(TOK_EQUAL, "=");
             break;
         case '<':
-            addToken((*next(c, 1) == '=') ? TOK_LESS_EQUAL : TOK_LESS);
+            if (*next(c, 1) == '=')
+                addToken(TOK_LESS_EQUAL, "<=");
+            else
+                addToken(TOK_LESS, "<");
             break;
         case '>':
-            addToken((*next(c, 1) == '=') ? TOK_GREATER_EQUAL : TOK_GREATER);
+            if (*next(c, 1) == '=')
+                addToken(TOK_GREATER_EQUAL, ">=");
+            else
+                addToken(TOK_GREATER, "<");
             break;
         case ' ':
         case '\r':
         case '\t':
         case '\n':
             // Ignore whitespace.
+            c++;
             break;
         default:
+            string buffer;
             if (isalpha(*c))
             {
-                addToken(TOK_IDENTIFIER);
+                while (isalnum(*c))
+                {
+                    buffer.push_back(*c);
+                    c++;
+                }
+                if (buffer == "int")
+                    addToken(TOK_INTEGER, buffer);
+                else if (buffer == "if")
+                    addToken(TOK_IF, buffer);
+                else if (buffer == "else")
+                    addToken(TOK_ELSE, buffer);
+                else
+                    addToken(TOK_IDENTIFIER, buffer);
             }
-            if (isdigit(*c))
-                addToken(TOK_NUMBER);
+            else if (isdigit(*c))
+            {
+                while (isdigit(*c))
+                {
+                    buffer.push_back(*c);
+                    c++;
+                }
+                addToken(TOK_NUMBER, buffer);
+            }
             else
-                addToken(TOK_UNKNOWN);
+                addToken(TOK_UNKNOWN, " ");
         }
     }
-    addToken(TOK_EOF);
+    addToken(TOK_EOF, "\0");
     for (auto i : tokens)
     {
-        cout << i.type << '\n';
+        cout << i.type << ' ' << i.val << '\n';
     }
 }
