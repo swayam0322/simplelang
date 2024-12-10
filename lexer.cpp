@@ -9,24 +9,21 @@ typedef enum
     TOK_EQUAL,         // 3
     TOK_PLUS,          // 4
     TOK_MINUS,         // 5
-    TOK_STAR,          // 6
-    TOK_SLASH,         // 7
-    TOK_IF,            // 8
-    TOK_ELSE,          // 9
-    TOK_EQUAL_EQUAL,   // 10
-    TOK_BANG,          // 11
-    TOK_BANG_EQUAL,    // 12
-    TOK_GREATER,       // 13
-    TOK_GREATER_EQUAL, // 14
-    TOK_LESS,          // 15
-    TOK_LESS_EQUAL,    // 16
-    TOK_LEFT_PAREN,    // 17
-    TOK_RIGHT_PAREN,   // 18
-    TOK_LEFT_BRACE,    // 19
-    TOK_RIGHT_BRACE,   // 20
-    TOK_SEMICOLON,     // 21
-    TOK_UNKNOWN,       // 22
-    TOK_EOF            // 23
+    TOK_IF,            // 6
+    TOK_EQUAL_EQUAL,   // 7
+    TOK_BANG,          // 8
+    TOK_BANG_EQUAL,    // 9
+    TOK_GREATER,       // 10
+    TOK_GREATER_EQUAL, // 11
+    TOK_LESS,          // 12
+    TOK_LESS_EQUAL,    // 13
+    TOK_LEFT_PAREN,    // 14
+    TOK_RIGHT_PAREN,   // 15
+    TOK_LEFT_BRACE,    // 16
+    TOK_RIGHT_BRACE,   // 17
+    TOK_SEMICOLON,     // 18
+    TOK_UNKNOWN,       // 19
+    TOK_EOF            // 20
 } TokenType;
 
 typedef struct
@@ -35,6 +32,11 @@ typedef struct
     string val;
 } Token;
 
+// typedef struct {
+//     Token t;
+//     ASTNode* children;
+// } ASTNode;
+
 vector<Token> tokens;
 
 void addToken(TokenType t, string s)
@@ -42,9 +44,14 @@ void addToken(TokenType t, string s)
     tokens.push_back({.type = t, .val = s});
 }
 
-int main()
+int main(int argc, char *argv[])
 {
-    ifstream file("input.txt");
+    if (argc < 2)
+    {
+        cout << "Invalid Syntax.....\nSyntax: <executable> <file>\n";
+        return 1;
+    }
+    ifstream file(argv[1]);
     if (!file)
     {
         perror("Failed to open file");
@@ -83,14 +90,6 @@ int main()
             addToken(TOK_SEMICOLON, ";");
             c++;
             break;
-        case '*':
-            addToken(TOK_STAR, "*");
-            c++;
-            break;
-        case '/':
-            addToken(TOK_SLASH, "/");
-            c++;
-            break;
         case '!':
             if (*next(c, 1) == '=')
                 addToken(TOK_BANG_EQUAL, "!=");
@@ -99,21 +98,29 @@ int main()
             c++;
             break;
         case '=':
-            c++;
-            if (*c == '=')
+            if (*next(c, 1) == '=')
+            {
                 addToken(TOK_EQUAL_EQUAL, "==");
+                c++;
+            }
             else
                 addToken(TOK_EQUAL, "=");
             break;
         case '<':
             if (*next(c, 1) == '=')
+            {
                 addToken(TOK_LESS_EQUAL, "<=");
+                c++;
+            }
             else
                 addToken(TOK_LESS, "<");
             break;
         case '>':
             if (*next(c, 1) == '=')
+            {
                 addToken(TOK_GREATER_EQUAL, ">=");
+                c++;
+            }
             else
                 addToken(TOK_GREATER, "<");
             break;
@@ -137,8 +144,6 @@ int main()
                     addToken(TOK_INTEGER, buffer);
                 else if (buffer == "if")
                     addToken(TOK_IF, buffer);
-                else if (buffer == "else")
-                    addToken(TOK_ELSE, buffer);
                 else
                     addToken(TOK_IDENTIFIER, buffer);
             }
@@ -157,7 +162,6 @@ int main()
     }
     addToken(TOK_EOF, "\0");
     for (auto i : tokens)
-    {
-        cout << i.type << ' ' << i.val << '\n';
-    }
+        cout << i.val << '\n';
+    return 0;
 }
