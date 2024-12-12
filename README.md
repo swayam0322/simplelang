@@ -1,7 +1,7 @@
 # simplelang
 Simple compiler 
 
-##Grammar:
+## Grammar:
 ```Program := Statement*
 Statement  := Declaration | Assignment | Conditional 
 Declaration := TOK_INT TOK_IDENTIFIER TOK_SEMICOLON
@@ -13,7 +13,7 @@ Condition := Expression (==|>=|<=|!=|>|<) Expression
 Block := TOK_LEFT_BRACE Statement* TOK_RIGHT_BRACE ```
 ```
 
-##Sample program:
+## Sample program:
 ```
 int a;
 int b; 
