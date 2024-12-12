@@ -268,6 +268,7 @@ int main(int argc, char *argv[])
                         lhs = make_shared<VariableNode>(token->val);
                     token++;
 
+                    // Expression assignment
                     if (token->type == TOK_PLUS | token->type == TOK_MINUS)
                     {
                         string op = token->val;
@@ -282,16 +283,16 @@ int main(int argc, char *argv[])
                         if (token != tokens.end() && token->type == TOK_SEMICOLON)
                         {
                             program->addNode(make_shared<AssignmentNode>(var_name, expression));
-                            cout << "Added an assignment node\n";
+                            cout << "Added an assignment Node\n";
                         }
                     }
-                }
 
-                // Variable Assignment
-                else if (token != tokens.end() && token->type == TOK_SEMICOLON)
-                {
-                    program->addNode(make_shared<AssignmentNode>(var_name, lhs));
-                    cout << "Added an assignment Node\n";
+                    // Variable Assignment
+                    else if (token != tokens.end() && token->type == TOK_SEMICOLON)
+                    {
+                        program->addNode(make_shared<AssignmentNode>(var_name, lhs));
+                        cout << "Added an assignment Node\n";
+                    }
                 }
             }
         }
