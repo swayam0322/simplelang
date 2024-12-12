@@ -1,7 +1,7 @@
 Program := Statement*
 Statement  := Declaration | Assignment | Conditional 
 Declaration := TOK_INT TOK_IDENTIFIER TOK_SEMICOLON
-Assignment := TOK_IDENTIFIER TOK_ASSIGN Expression TOK_SEMICOLON
+Assignment := TOK_IDENTIFIER TOK_EQUAL Expression TOK_SEMICOLON
 Expression := (Expression (+|-) Term)| Term
 Term := TOK_IDENTIFIER | TOK_NUMBER
 Conditional := TOK_IF TOK_LEFT_PAREN Condition TOK_RIGHT_PAREN Block 

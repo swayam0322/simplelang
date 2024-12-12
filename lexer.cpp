@@ -1,4 +1,7 @@
 #include <bits/stdc++.h>
+// #include"./parser.hpp"
+#include <memory>
+
 using namespace std;
 
 typedef enum
@@ -23,7 +26,7 @@ typedef enum
     TOK_RIGHT_BRACE,   // 17
     TOK_SEMICOLON,     // 18
     TOK_UNKNOWN,       // 19
-    TOK_EOF            // 20
+    TOK_EOF,           // 20
 } TokenType;
 
 typedef struct
@@ -32,10 +35,52 @@ typedef struct
     string val;
 } Token;
 
-// typedef struct {
-//     Token t;
-//     ASTNode* children;
-// } ASTNode;
+class ASTNode
+{
+public:
+    virtual ~ASTNode() = default;
+};
+
+class RootNode : public ASTNode
+{
+public:
+    vector<shared_ptr<ASTNode>> nodes;
+
+    void addNode(shared_ptr<ASTNode> node)
+    {
+        nodes.push_back(node);
+    }
+};
+
+class DeclarationNode : public ASTNode
+{
+public:
+    string name;
+    DeclarationNode(string &name) : name(name) {}
+};
+
+class AssignmentNode : public ASTNode
+{
+public:
+    string name;
+    shared_ptr<variant<LiteralNode, OperatorNode>> exp;
+
+    AssignmentNode(const string& variable, shared_ptr<variant<LiteralNode, OperatorNode>> expression)
+        : name (variable), exp (expression) {}
+};
+
+class LiteralNode : public ASTNode
+{
+public:
+    int8_t value;
+};
+
+class OperatorNode : public ASTNode
+{
+public:
+    string op;
+    shared_ptr<LiteralNode> lhs, rhs;
+};
 
 vector<Token> tokens;
 
@@ -161,7 +206,95 @@ int main(int argc, char *argv[])
         }
     }
     addToken(TOK_EOF, "\0");
-    for (auto i : tokens)
-        cout << i.val << '\n';
-    return 0;
-}
+
+    auto program = make_shared<RootNode>();
+
+    for (auto token = tokens.begin(); token != tokens.end(); token++)
+    {
+        if (token->type == TOK_INTEGER)
+        {
+            token++;
+            if (token != tokens.end() && token->type == TOK_IDENTIFIER)
+            {
+                string var_name = token->val;
+                token++;
+                if (token != tokens.end() && token->type == TOK_SEMICOLON)
+                {
+                    program->addNode(make_shared<DeclarationNode>(var_name));
+                    cout << "Added a node\n";
+                }
+            }
+        }
+
+        else if (token->type == TOK_IDENTIFIER)
+        {
+            string var_name = token->val;
+            token++;
+            if (token != tokens.end() && token->type == TOK_EQUAL)
+            {
+                token++;
+                if (token != tokens.end())
+                {
+                    if (token->type == TOK_NUMBER)
+                    {
+                        int8_t value = stoi(token->val);
+                        token++;
+                        if (token != tokens.end() && token->type == TOK_SEMICOLON)
+                        {
+                            
+                        }
+                    }
+                    else if (token->type == TOK_IDENTIFIER)
+                    {
+                    }
+                }
+            }
+
+            else if (token->type == TOK_IF)
+            {
+                token++;
+                if (token != tokens.end() && token->type == TOK_LEFT_PAREN)
+                {
+                    token++;
+                    if (token->type == TOK_IDENTIFIER || token->type == TOK_NUMBER)
+                    {
+                        token++;
+                        if (token->type == TOK_EQUAL_EQUAL ||
+                            token->type == TOK_BANG_EQUAL ||
+                            token->type == TOK_LESS ||
+                            token->type == TOK_LESS_EQUAL ||
+                            token->type == TOK_GREATER ||
+                            token->type == TOK_GREATER_EQUAL)
+                        {
+                            token++;
+                            if (token->type == TOK_NUMBER || token->type == TOK_IDENTIFIER)
+                            {
+                                token++;
+                                if (token->type == TOK_RIGHT_PAREN)
+                                {
+                                    token++;
+                                    cout << "Found Conditional\nt";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            else if (token->type == TOK_EOF)
+            {
+                break;
+            }
+            else
+            {
+                cout << "Unexpected token: " << token->val << '\n';
+            }
+        }
+
+        // for(auto node: program->nodes){
+        //     cout<<node;
+        // }
+        // for (auto tok : tokens)
+        //     cout << tok.type << ':' << tok.val << '\n';
+        // return 0;
+    }
