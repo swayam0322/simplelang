@@ -73,6 +73,7 @@ public:
     string name;
     VariableNode(string &name) : name(name) {}
 };
+
 class BinExprNode : public ASTNode
 {
 public:
@@ -93,15 +94,17 @@ public:
     AssignmentNode(string variable, shared_ptr<ASTNode> expression)
         : name(variable), exp(expression) {}
 };
-class IfNode : public ASTNode
+
+class ConditionNode : public ASTNode
 {
 public:
     string comp;
     shared_ptr<ASTNode> LHS, RHS;
 
-    IfNode(string comp, shared_ptr<ASTNode> lhs, shared_ptr<ASTNode> rhs)
+    ConditionNode(string comp, shared_ptr<ASTNode> lhs, shared_ptr<ASTNode> rhs)
         : comp(comp), LHS(move(lhs)), RHS(move(rhs)) {}
 };
+
 static vector<Token> tokens;
 
 void addToken(TokenType t, string s)
@@ -210,7 +213,7 @@ bool parseConditional(vector<Token>::iterator &token, vector<Token>::iterator en
                     if (token->type == TOK_RIGHT_PAREN)
                     {
                         cout << "Added Conditional Node\n";
-                        program->addNode(make_shared<IfNode>(comp, lhs, rhs));
+                        program->addNode(make_shared<ConditionNode>(comp, lhs, rhs));
                         return true;
                     }
                 }
@@ -219,7 +222,6 @@ bool parseConditional(vector<Token>::iterator &token, vector<Token>::iterator en
     }
     return false;
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -355,7 +357,7 @@ int main(int argc, char *argv[])
             continue;
         else if (parseAssignment(token, tokens.end(), program))
             continue;
-        else if(parseConditional(token, tokens.end(), program))
+        else if (parseConditional(token, tokens.end(), program))
             continue;
 
         else if (token->type == TOK_EOF)
@@ -364,9 +366,9 @@ int main(int argc, char *argv[])
             cout << "Unexpected token: " << token->val << '\n';
     }
 
-    // for(auto node: program->nodes){
-    //     cout<<node;
-    // }
+    for(auto node: program->nodes){
+        cout<<node<<'\n';
+    }
     // for (auto tok : tokens)
     //     cout << tok.type << ':' << tok.val << '\n';
     // return 0;
