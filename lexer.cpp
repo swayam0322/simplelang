@@ -44,8 +44,9 @@ public:
 class RootNode : public ASTNode
 {
 public:
+    char init_char;
     vector<shared_ptr<ASTNode>> nodes;
-
+    RootNode() : init_char('~') {}
     void addNode(shared_ptr<ASTNode> node)
     {
         nodes.push_back(node);
@@ -92,11 +93,14 @@ public:
     AssignmentNode(string variable, shared_ptr<ASTNode> expression)
         : name(variable), exp(expression) {}
 };
-
 class IfNode : public ASTNode
 {
 public:
-    shared_ptr<ASTNode> Condition;
+    string comp;
+    shared_ptr<ASTNode> LHS, RHS;
+
+    IfNode(string comp, shared_ptr<ASTNode> lhs, shared_ptr<ASTNode> rhs)
+        : comp(comp), LHS(move(lhs)), RHS(move(rhs)) {}
 };
 static vector<Token> tokens;
 
@@ -104,6 +108,118 @@ void addToken(TokenType t, string s)
 {
     tokens.push_back({.type = t, .val = s});
 }
+
+bool parseDeclaration(vector<Token>::iterator &token, vector<Token>::iterator end, shared_ptr<RootNode> program)
+{
+    if (token->type == TOK_INTEGER)
+    {
+        token++;
+        if (token != tokens.end() && token->type == TOK_IDENTIFIER)
+        {
+            string var_name = token->val;
+            token++;
+            if (token != tokens.end() && token->type == TOK_SEMICOLON)
+            {
+                program->addNode(make_shared<DeclarationNode>(var_name));
+                std::cout << "Added a declaration node\n";
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+shared_ptr<ASTNode> parseExpression(vector<Token>::iterator &token, vector<Token>::iterator end, shared_ptr<RootNode> program)
+{
+    shared_ptr<ASTNode> lhs;
+    if (token->type == TOK_NUMBER)
+        lhs = make_shared<LiteralNode>(stoi(token->val));
+    else if (token->type == TOK_IDENTIFIER)
+        lhs = make_shared<VariableNode>(token->val);
+    token++;
+
+    // Expression assignment
+    if (token->type == TOK_PLUS | token->type == TOK_MINUS)
+    {
+        string op = token->val;
+        token++;
+        shared_ptr<ASTNode> rhs;
+        if (token->type == TOK_NUMBER)
+            rhs = make_shared<LiteralNode>(stoi(token->val));
+        else if (token->type == TOK_IDENTIFIER)
+            rhs = make_shared<VariableNode>(token->val);
+        auto expression = make_shared<BinExprNode>(op, lhs, rhs);
+        token++;
+        return expression;
+    }
+    return lhs;
+}
+
+bool parseAssignment(vector<Token>::iterator &token, vector<Token>::iterator end, shared_ptr<RootNode> program)
+{
+    if (token->type == TOK_IDENTIFIER)
+    {
+        string var_name = token->val;
+        token++;
+        if (token != tokens.end() && token->type == TOK_EQUAL)
+        {
+            token++;
+            auto expression = parseExpression(token, tokens.end(), program);
+            if (token != tokens.end() && token->type == TOK_SEMICOLON)
+            {
+                program->addNode(make_shared<AssignmentNode>(var_name, expression));
+                cout << "Added an assignment Node\n";
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool parseConditional(vector<Token>::iterator &token, vector<Token>::iterator end, shared_ptr<RootNode> program)
+{
+    if (token->type == TOK_IF)
+    {
+        token++;
+        if (token != tokens.end() && token->type == TOK_LEFT_PAREN)
+        {
+            token++;
+            shared_ptr<ASTNode> lhs;
+            if (token->type == TOK_IDENTIFIER || token->type == TOK_NUMBER)
+            {
+                if (token->type == TOK_NUMBER)
+                    lhs = make_shared<LiteralNode>(stoi(token->val));
+                else if (token->type == TOK_IDENTIFIER)
+                    lhs = make_shared<VariableNode>(token->val);
+                token++;
+                if (token->type == TOK_EQUAL_EQUAL ||
+                    token->type == TOK_BANG_EQUAL ||
+                    token->type == TOK_LESS ||
+                    token->type == TOK_LESS_EQUAL ||
+                    token->type == TOK_GREATER ||
+                    token->type == TOK_GREATER_EQUAL)
+                {
+                    string comp = token->val;
+                    token++;
+                    shared_ptr<ASTNode> rhs;
+                    if (token->type == TOK_NUMBER)
+                        rhs = make_shared<LiteralNode>(stoi(token->val));
+                    else if (token->type == TOK_IDENTIFIER)
+                        rhs = make_shared<VariableNode>(token->val);
+                    token++;
+                    if (token->type == TOK_RIGHT_PAREN)
+                    {
+                        cout << "Added Conditional Node\n";
+                        program->addNode(make_shared<IfNode>(comp, lhs, rhs));
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -235,107 +351,17 @@ int main(int argc, char *argv[])
 
     for (auto token = tokens.begin(); token != tokens.end(); token++)
     {
-        // Declaration
-        if (token->type == TOK_INTEGER)
-        {
-            token++;
-            if (token != tokens.end() && token->type == TOK_IDENTIFIER)
-            {
-                string var_name = token->val;
-                token++;
-                if (token != tokens.end() && token->type == TOK_SEMICOLON)
-                {
-                    program->addNode(make_shared<DeclarationNode>(var_name));
-                    std::cout << "Added a declaration node\n";
-                }
-            }
-        }
-
-        // Assignment
-        else if (token->type == TOK_IDENTIFIER)
-        {
-            string var_name = token->val;
-            token++;
-            if (token != tokens.end() && token->type == TOK_EQUAL)
-            {
-                token++;
-                shared_ptr<ASTNode> lhs;
-                if (token != tokens.end())
-                {
-                    if (token->type == TOK_NUMBER)
-                        lhs = make_shared<LiteralNode>(stoi(token->val));
-                    else if (token->type == TOK_IDENTIFIER)
-                        lhs = make_shared<VariableNode>(token->val);
-                    token++;
-
-                    // Expression assignment
-                    if (token->type == TOK_PLUS | token->type == TOK_MINUS)
-                    {
-                        string op = token->val;
-                        token++;
-                        shared_ptr<ASTNode> rhs;
-                        if (token->type == TOK_NUMBER)
-                            rhs = make_shared<LiteralNode>(stoi(token->val));
-                        else if (token->type == TOK_IDENTIFIER)
-                            rhs = make_shared<VariableNode>(token->val);
-                        auto expression = make_shared<BinExprNode>(op, lhs, rhs);
-                        token++;
-                        if (token != tokens.end() && token->type == TOK_SEMICOLON)
-                        {
-                            program->addNode(make_shared<AssignmentNode>(var_name, expression));
-                            cout << "Added an assignment Node\n";
-                        }
-                    }
-
-                    // Variable Assignment
-                    else if (token != tokens.end() && token->type == TOK_SEMICOLON)
-                    {
-                        program->addNode(make_shared<AssignmentNode>(var_name, lhs));
-                        cout << "Added an assignment Node\n";
-                    }
-                }
-            }
-        }
-
-        else if (token->type == TOK_IF)
-        {
-            token++;
-            if (token != tokens.end() && token->type == TOK_LEFT_PAREN)
-            {
-                token++;
-                if (token->type == TOK_IDENTIFIER || token->type == TOK_NUMBER)
-                {
-                    token++;
-                    if (token->type == TOK_EQUAL_EQUAL ||
-                        token->type == TOK_BANG_EQUAL ||
-                        token->type == TOK_LESS ||
-                        token->type == TOK_LESS_EQUAL ||
-                        token->type == TOK_GREATER ||
-                        token->type == TOK_GREATER_EQUAL)
-                    {
-                        token++;
-                        if (token->type == TOK_NUMBER || token->type == TOK_IDENTIFIER)
-                        {
-                            token++;
-                            if (token->type == TOK_RIGHT_PAREN)
-                            {
-                                token++;
-                                cout << "Found Conditional\nt";
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        if (parseDeclaration(token, tokens.end(), program))
+            continue;
+        else if (parseAssignment(token, tokens.end(), program))
+            continue;
+        else if(parseConditional(token, tokens.end(), program))
+            continue;
 
         else if (token->type == TOK_EOF)
-        {
             break;
-        }
         else
-        {
             cout << "Unexpected token: " << token->val << '\n';
-        }
     }
 
     // for(auto node: program->nodes){
