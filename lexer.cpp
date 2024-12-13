@@ -1,32 +1,28 @@
 #include <bits/stdc++.h>
-// #include"./parser.hpp"
 #include <memory>
 
 using namespace std;
 
 typedef enum
 {
-    TOK_INTEGER,       // 0
-    TOK_IDENTIFIER,    // 1
-    TOK_NUMBER,        // 2
-    TOK_EQUAL,         // 3
-    TOK_PLUS,          // 4
-    TOK_MINUS,         // 5
-    TOK_IF,            // 6
-    TOK_EQUAL_EQUAL,   // 7
-    TOK_BANG,          // 8
-    TOK_BANG_EQUAL,    // 9
-    TOK_GREATER,       // 10
-    TOK_GREATER_EQUAL, // 11
-    TOK_LESS,          // 12
-    TOK_LESS_EQUAL,    // 13
-    TOK_LEFT_PAREN,    // 14
-    TOK_RIGHT_PAREN,   // 15
-    TOK_LEFT_BRACE,    // 16
-    TOK_RIGHT_BRACE,   // 17
-    TOK_SEMICOLON,     // 18
-    TOK_UNKNOWN,       // 19
-    TOK_EOF,           // 20
+    TOK_INTEGER,
+    TOK_IDENTIFIER,
+    TOK_NUMBER,
+    TOK_ASSIGN,
+    TOK_PLUS,
+    TOK_MINUS,
+    TOK_IF,
+    TOK_EQUAL,
+    TOK_NOT_EQUAL,
+    TOK_GREATER,
+    TOK_LESS,
+    TOK_LEFT_PAREN,
+    TOK_RIGHT_PAREN,
+    TOK_LEFT_BRACE,
+    TOK_RIGHT_BRACE,
+    TOK_SEMICOLON,
+    TOK_UNKNOWN,
+    TOK_EOF,
 } TokenType;
 
 typedef struct
@@ -35,6 +31,7 @@ typedef struct
     string val;
 } Token;
 
+static vector<Token> tokens;
 class ASTNode
 {
 public:
@@ -44,9 +41,7 @@ public:
 class RootNode : public ASTNode
 {
 public:
-    char init_char;
     vector<shared_ptr<ASTNode>> nodes;
-    RootNode() : init_char('~') {}
     void addNode(shared_ptr<ASTNode> node)
     {
         nodes.push_back(node);
@@ -105,12 +100,23 @@ public:
         : comp(comp), LHS(move(lhs)), RHS(move(rhs)) {}
 };
 
-static vector<Token> tokens;
-
-void addToken(TokenType t, string s)
+class BlockNode : public RootNode
 {
-    tokens.push_back({.type = t, .val = s});
-}
+public:
+    vector<shared_ptr<ASTNode>> nodes;
+
+    void addNode(shared_ptr<ASTNode> stmt)
+    {
+        nodes.push_back(stmt);
+    }
+};
+
+class ConditionalNode : public ASTNode
+{
+public:
+    shared_ptr<ASTNode> condition, block;
+    ConditionalNode(shared_ptr<ASTNode> cond, shared_ptr<ASTNode> blk) : condition(cond), block(blk) {}
+};
 
 bool parseDeclaration(vector<Token>::iterator &token, vector<Token>::iterator end, shared_ptr<RootNode> program)
 {
@@ -164,7 +170,7 @@ bool parseAssignment(vector<Token>::iterator &token, vector<Token>::iterator end
     {
         string var_name = token->val;
         token++;
-        if (token != tokens.end() && token->type == TOK_EQUAL)
+        if (token != tokens.end() && token->type == TOK_ASSIGN)
         {
             token++;
             auto expression = parseExpression(token, tokens.end(), program);
@@ -177,6 +183,32 @@ bool parseAssignment(vector<Token>::iterator &token, vector<Token>::iterator end
         }
     }
     return false;
+}
+
+bool parseConditional(vector<Token>::iterator &token, vector<Token>::iterator end, shared_ptr<RootNode> program);
+
+shared_ptr<BlockNode> parseBlock(vector<Token>::iterator &token, vector<Token>::iterator end, shared_ptr<BlockNode> blk)
+{
+    while (token->type != TOK_RIGHT_BRACE)
+    {
+        if (parseDeclaration(token, tokens.end(), blk))
+            token++;
+        else if (parseAssignment(token, tokens.end(), blk))
+            token++;
+        else if (parseConditional(token, tokens.end(), blk))
+            token++;
+        else if (token->type == TOK_EOF)
+        {
+            break;
+        }
+        else
+        {
+            cout << "Unexpected token: " << token->val << '\n';
+            token++;
+        }
+    }
+    token++;
+    return blk;
 }
 
 bool parseConditional(vector<Token>::iterator &token, vector<Token>::iterator end, shared_ptr<RootNode> program)
@@ -195,12 +227,10 @@ bool parseConditional(vector<Token>::iterator &token, vector<Token>::iterator en
                 else if (token->type == TOK_IDENTIFIER)
                     lhs = make_shared<VariableNode>(token->val);
                 token++;
-                if (token->type == TOK_EQUAL_EQUAL ||
-                    token->type == TOK_BANG_EQUAL ||
+                if (token->type == TOK_EQUAL ||
+                    token->type == TOK_NOT_EQUAL ||
                     token->type == TOK_LESS ||
-                    token->type == TOK_LESS_EQUAL ||
-                    token->type == TOK_GREATER ||
-                    token->type == TOK_GREATER_EQUAL)
+                    token->type == TOK_GREATER)
                 {
                     string comp = token->val;
                     token++;
@@ -212,9 +242,17 @@ bool parseConditional(vector<Token>::iterator &token, vector<Token>::iterator en
                     token++;
                     if (token->type == TOK_RIGHT_PAREN)
                     {
-                        cout << "Added Conditional Node\n";
-                        program->addNode(make_shared<ConditionNode>(comp, lhs, rhs));
-                        return true;
+                        auto condition = make_shared<ConditionNode>(comp, lhs, rhs);
+                        token++;
+                        if (token->type == TOK_LEFT_BRACE)
+                        {
+                            token++;
+                            cout << "New Block opened\n";
+                            auto block = parseBlock(token, tokens.end(), make_shared<BlockNode>());
+                            program->addNode(make_shared<ConditionalNode>(condition, block));
+                            cout << "Added Conditional Block\n";
+                            return true;
+                        }
                     }
                 }
             }
@@ -223,24 +261,13 @@ bool parseConditional(vector<Token>::iterator &token, vector<Token>::iterator en
     return false;
 }
 
-int main(int argc, char *argv[])
+vector<Token> tokenize(ifstream &file)
 {
-    if (argc < 2)
+    vector<Token> tokens;
+    auto addToken = [&tokens](TokenType t, string s)
     {
-        std::cout << "Invalid Syntax.....\nSyntax: <executable> <file>\n";
-        return 1;
-    }
-    ifstream file(argv[1]);
-    if (!file)
-    {
-        perror("Failed to open file");
-        return 1;
-    }
-
-    //////////////////////////////////////////////////////////
-    // Lexer
-    //////////////////////////////////////////////////////////
-
+        tokens.push_back({.type = t, .val = s});
+    };
     for (auto c = istreambuf_iterator<char>(file); c != istreambuf_iterator<char>();)
     {
         switch (*c)
@@ -274,38 +301,24 @@ int main(int argc, char *argv[])
             c++;
             break;
         case '!':
-            if (*next(c, 1) == '=')
-                addToken(TOK_BANG_EQUAL, "!=");
-            else
-                addToken(TOK_BANG, "!");
+            addToken(TOK_NOT_EQUAL, "!");
+            c++;
+            break;
+        case '<':
+            addToken(TOK_LESS, "<");
+            c++;
+            break;
+        case '>':
+            addToken(TOK_GREATER, "<");
             c++;
             break;
         case '=':
-            if (*next(c, 1) == '=')
-            {
-                addToken(TOK_EQUAL_EQUAL, "==");
-                c++;
-            }
-            else
-                addToken(TOK_EQUAL, "=");
+            addToken(TOK_EQUAL, "=");
+            c++;
             break;
-        case '<':
-            if (*next(c, 1) == '=')
-            {
-                addToken(TOK_LESS_EQUAL, "<=");
-                c++;
-            }
-            else
-                addToken(TOK_LESS, "<");
-            break;
-        case '>':
-            if (*next(c, 1) == '=')
-            {
-                addToken(TOK_GREATER_EQUAL, ">=");
-                c++;
-            }
-            else
-                addToken(TOK_GREATER, "<");
+        case ':':
+            addToken(TOK_ASSIGN, ":");
+            c++;
             break;
         case ' ':
         case '\r':
@@ -323,7 +336,7 @@ int main(int argc, char *argv[])
                     buffer.push_back(*c);
                     c++;
                 }
-                if (buffer == "int")
+                if (buffer == "var")
                     addToken(TOK_INTEGER, buffer);
                 else if (buffer == "if")
                     addToken(TOK_IF, buffer);
@@ -340,18 +353,80 @@ int main(int argc, char *argv[])
                 addToken(TOK_NUMBER, buffer);
             }
             else
-                addToken(TOK_UNKNOWN, " ");
+                addToken(TOK_UNKNOWN, "$");
         }
     }
     addToken(TOK_EOF, "\0");
+    return tokens;
+}
 
-    ///////////////////////////////////////////////////////////////////////////
-    // Parser &  AST
-    ////////////////////////////////////////////////////////////////////////////
+void printTree(shared_ptr<RootNode> program)
+{
+    for (auto node : program->nodes)
+    {
+        if (auto dec_node = dynamic_pointer_cast<DeclarationNode>(node))
+            cout << "Declaration(" << dec_node->name << ")\n";
+        else if (auto assign_node = dynamic_pointer_cast<AssignmentNode>(node))
+        {
+            cout << "Assignment(" << assign_node->name << ',';
+            if (auto exp_node = dynamic_pointer_cast<BinExprNode>(assign_node->exp))
+            {
+                cout << "Expression(";
+                if (auto lhs = dynamic_pointer_cast<LiteralNode>(exp_node->LHS))
+                    cout << "Literal(" << lhs->value << ')';
+                else if (auto lhs = dynamic_pointer_cast<VariableNode>(exp_node->LHS))
+                    cout << "Variable(" << lhs->name << ')';
+                cout << exp_node->op;
+                if (auto rhs = dynamic_pointer_cast<LiteralNode>(exp_node->RHS))
+                    cout << "Literal(" << rhs->value << ')';
+                else if (auto rhs = dynamic_pointer_cast<VariableNode>(exp_node->RHS))
+                    cout << "Variable(" << rhs->name << ')';
+                cout << ")";
+            }
+            else if (auto lit_node = dynamic_pointer_cast<LiteralNode>(assign_node->exp))
+                cout << "Literal(" << lit_node->value << ")";
+            else if (auto var_node = dynamic_pointer_cast<VariableNode>(assign_node->exp))
+                cout << "Variable(" << var_node->name << ")";
+            cout << ")\n";
+        }
+        else if (auto cond_node = dynamic_pointer_cast<ConditionalNode>(node))
+        {
+            auto condition = dynamic_pointer_cast<ConditionNode>(cond_node->condition);
+            cout << "Condition(";
+            if (auto lhs = dynamic_pointer_cast<LiteralNode>(condition->LHS))
+                cout << "Literal(" << lhs->value << ')';
+            else if (auto lhs = dynamic_pointer_cast<VariableNode>(condition->LHS))
+                cout << "Variable(" << lhs->name << ')';
+            cout << ' ' << condition->comp << ' ';
+            if (auto rhs = dynamic_pointer_cast<LiteralNode>(condition->RHS))
+                cout << "Literal(" << rhs->value << ')';
+            else if (auto rhs = dynamic_pointer_cast<VariableNode>(condition->RHS))
+                cout << "Variable(" << rhs->name << ')';
+            cout << ")\n";
+            auto block = dynamic_pointer_cast<BlockNode>(cond_node->block);
+            printTree(block);
+        }
+        else
+            cout << "Unknown Node Type\n";
+    }
+}
 
+int main(int argc, char *argv[])
+{
+    if (argc < 2)
+    {
+        std::cout << "Invalid Syntax.....\nSyntax: <executable> <file>\n";
+        return 1;
+    }
+    ifstream file(argv[1]);
+    if (!file)
+    {
+        perror("Failed to open file");
+        return 1;
+    }
+    tokens = tokenize(file);
     auto program = make_shared<RootNode>();
-
-    for (auto token = tokens.begin(); token != tokens.end(); token++)
+    for (auto token = tokens.begin(); token->type != TOK_EOF; token++)
     {
         if (parseDeclaration(token, tokens.end(), program))
             continue;
@@ -359,17 +434,10 @@ int main(int argc, char *argv[])
             continue;
         else if (parseConditional(token, tokens.end(), program))
             continue;
-
-        else if (token->type == TOK_EOF)
-            break;
-        else
-            cout << "Unexpected token: " << token->val << '\n';
+        break;
     }
-
-    for(auto node: program->nodes){
-        cout<<node<<'\n';
-    }
-    // for (auto tok : tokens)
-    //     cout << tok.type << ':' << tok.val << '\n';
-    // return 0;
+    printTree(program);
+    // for(auto tok : tokens){
+    //     cout<<tok.val<<' ';
+    // }
 }
