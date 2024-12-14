@@ -17,7 +17,7 @@ Expression := Term (+|-) Term | Term
 
 Conditional := TOK_IF TOK_LEFT_PAREN Condition TOK_RIGHT_PAREN Block
 
-Condition := Term (==|>=|<=|!=|>|<) Term
+Condition := Term (=|>|<|!) Term
 
 Term := TOK_IDENTIIFIER | TERM_NUMBER
 
