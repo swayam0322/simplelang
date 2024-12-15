@@ -349,72 +349,74 @@ vector<Token> tokenize(ifstream &file)
     return tokens;
 }
 
-void printTree(shared_ptr<RootNode> program)
+static int blockCount = 0;
+static vector<string> symbols;
+
+void generate(shared_ptr<RootNode> program, string label = "_start")
 {
+    ofstream file;
+    file.open ("generated.asm");
+    file<<".text\n\n";
+    file<<label<<":\n";
     for (auto node : program->nodes)
     {
         if (auto dec_node = dynamic_pointer_cast<DeclarationNode>(node))
-            cout << "Declaration(" << dec_node->name << ")\n";
+            symbols.push_back(dec_node->name); 
         else if (auto assign_node = dynamic_pointer_cast<AssignmentNode>(node))
         {
-            cout << "Assignment(" << assign_node->name << ',';
             if (auto exp_node = dynamic_pointer_cast<BinExprNode>(assign_node->exp))
             {
-                cout << "Expression(";
-                if (auto lhs = dynamic_pointer_cast<LiteralNode>(exp_node->LHS))
-                    cout << "Literal(" << lhs->value << ')';
-                else if (auto lhs = dynamic_pointer_cast<VariableNode>(exp_node->LHS))
-                    cout << "Variable(" << lhs->name << ')';
-                cout << exp_node->op;
                 if (auto rhs = dynamic_pointer_cast<LiteralNode>(exp_node->RHS))
-                    cout << "Literal(" << rhs->value << ')';
+                    file<<"ldi A "<< rhs->value<<'\n';
                 else if (auto rhs = dynamic_pointer_cast<VariableNode>(exp_node->RHS))
-                    cout << "Variable(" << rhs->name << ')';
-                cout << ")";
+                    file<<"lda %"<< rhs->name << '\n';
+                file<<"mov B A\n";
+                if (auto lhs = dynamic_pointer_cast<LiteralNode>(exp_node->LHS))
+                    file<<"ldi A "<<lhs->value<<'\n';
+                else if (auto lhs = dynamic_pointer_cast<VariableNode>(exp_node->LHS))
+                    file<<"lda %"<< lhs->name << '\n';
+                if(exp_node->op == "+")
+                    file<<"add\n";
+                else 
+                    file<<"sub\n";
+                file<<"sta %"<<assign_node->name<<'\n';
             }
             else if (auto lit_node = dynamic_pointer_cast<LiteralNode>(assign_node->exp))
-                cout << "Literal(" << lit_node->value << ")";
+                file<<"ldi A "<< lit_node->value<<'\n'<<"sta %"<<assign_node->name<<'\n';
             else if (auto var_node = dynamic_pointer_cast<VariableNode>(assign_node->exp))
-                cout << "Variable(" << var_node->name << ")";
-            cout << ")\n";
+                file<<"lda %"<< var_node->name << '\n'<<"sta %"<<assign_node->name<<'\n';
         }
         else if (auto cond_node = dynamic_pointer_cast<ConditionalNode>(node))
         {
             auto condition = dynamic_pointer_cast<ConditionNode>(cond_node->condition);
-            cout << "Condition(";
-            if (auto lhs = dynamic_pointer_cast<LiteralNode>(condition->LHS))
-                cout << "Literal(" << lhs->value << ')';
-            else if (auto lhs = dynamic_pointer_cast<VariableNode>(condition->LHS))
-                cout << "Variable(" << lhs->name << ')';
-            cout << ' ' << condition->comp << ' ';
             if (auto rhs = dynamic_pointer_cast<LiteralNode>(condition->RHS))
-                cout << "Literal(" << rhs->value << ')';
+                file<<"ldi A "<< rhs->value<<'\n';
             else if (auto rhs = dynamic_pointer_cast<VariableNode>(condition->RHS))
-                cout << "Variable(" << rhs->name << ')';
-            cout << ")\n";
+                file<<"lda %"<< rhs->name << '\n';
+            file<<"mov B A\n";
+            if (auto lhs = dynamic_pointer_cast<LiteralNode>(condition->LHS))
+                file<<"ldi A "<<lhs->value<<'\n';
+            else if (auto lhs = dynamic_pointer_cast<VariableNode>(condition->LHS))
+                file<<"lda %"<< lhs->name << '\n';
+            file<<"cmp\n";
+            if(condition->comp == "=")
+                    file<<"jz %BLOCK"<<blockCount;
+                else 
+                    file<<"jnz %BLOCK"<<blockCount;
             auto block = dynamic_pointer_cast<BlockNode>(cond_node->block);
-            printTree(block);
+            generate(block, "BLOCK"+blockCount);
+            blockCount++;
         }
         else
-            cout << "Unknown Node Type\n";
+            cerr << "Unknown Node Type\n";
     }
+    file<<"\nEND:\nhlt\n";
+    file<<"\n.data\n";
+    for(auto i:symbols)
+        file<<i<<"=0\n";
 }
 
-int main(int argc, char *argv[])
-{
-    if (argc < 2)
-    {
-        std::cout << "Invalid Syntax.....\nSyntax: <executable> <file>\n";
-        return 1;
-    }
-    ifstream file(argv[1]);
-    if (!file)
-    {
-        perror("Failed to open file");
-        return 1;
-    }
-    tokens = tokenize(file);
-    auto program = make_shared<RootNode>();
+void parse(vector<Token> &tokens, shared_ptr<RootNode> program){
     for (auto token = tokens.begin(); token->type != TOK_EOF; token++)
     {
         if (parseDeclaration(token, tokens.end(), program))
@@ -427,11 +429,31 @@ int main(int argc, char *argv[])
             break;
         else
         {
-            cout << "Unexpected token " << token->val;
+            cerr << "Unexpected token " << token->val;
             break;
         }
     }
-    printTree(program);
+}
+
+
+int main(int argc, char *argv[])
+{
+    if (argc < 2)
+    {
+        std::cerr << "Invalid Syntax.....\nSyntax: <executable> <file>\n";
+        return 1;
+    }
+    ifstream file(argv[1]);
+    if (!file)
+    {
+        perror("Failed to open file");
+        return 1;
+    }
+    tokens = tokenize(file);
+    auto root = make_shared<RootNode>();
+    parse(tokens, root);
+    generate(root);
+
     // for(auto tok : tokens){
     //     cout<<tok.val<<' ';
     // }

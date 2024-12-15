@@ -1,16 +1,15 @@
 var a;
 var b; 
 var c; 
+var d;
+var e;
 
 a : 10; 
 b : 20; 
 c : a + b; 
+d : a + c;
+e : c + d;
 
-if (c = 30) {  
-   c : c + 1; 
-   a : a - 2;
-   if(c ! 20) {
-      a : a + 10;
-      b:b+2;
-   }
+if(c = 30){
+   c=c+1;
 }
