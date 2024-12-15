@@ -14,8 +14,6 @@ typedef enum
     TOK_IF,
     TOK_EQUAL,
     TOK_NOT_EQUAL,
-    TOK_GREATER,
-    TOK_LESS,
     TOK_LEFT_PAREN,
     TOK_RIGHT_PAREN,
     TOK_LEFT_BRACE,
@@ -227,9 +225,8 @@ bool parseConditional(vector<Token>::iterator &token, vector<Token>::iterator en
                     lhs = make_shared<VariableNode>(token->val);
                 token++;
                 if (token->type == TOK_EQUAL ||
-                    token->type == TOK_NOT_EQUAL ||
-                    token->type == TOK_LESS ||
-                    token->type == TOK_GREATER)
+                    token->type == TOK_NOT_EQUAL)
+
                 {
                     string comp = token->val;
                     token++;
@@ -302,14 +299,6 @@ vector<Token> tokenize(ifstream &file)
             break;
         case '!':
             addToken(TOK_NOT_EQUAL, "!");
-            c++;
-            break;
-        case '<':
-            addToken(TOK_LESS, "<");
-            c++;
-            break;
-        case '>':
-            addToken(TOK_GREATER, ">");
             c++;
             break;
         case '=':
@@ -434,9 +423,11 @@ int main(int argc, char *argv[])
             continue;
         else if (parseConditional(token, tokens.end(), program))
             continue;
-        else if(token->type != TOK_EOF) break;
-        else{
-            cout<<"Unexpected token "<< token->val;
+        else if (token->type != TOK_EOF)
+            break;
+        else
+        {
+            cout << "Unexpected token " << token->val;
             break;
         }
     }

@@ -1,5 +1,0 @@
-https://craftinginterpreters.com/scanning.html
-https://lesleylai.info/en/ast-in-cpp-part-1-variant/
-https://en.wikipedia.org/wiki/Abstract_syntax_tree
-
-https://youtu.be/pupdmHjzrTI?feature=shared

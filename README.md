@@ -17,7 +17,7 @@ Expression := Term (+|-) Term | Term
 
 Conditional := TOK_IF TOK_LEFT_PAREN Condition TOK_RIGHT_PAREN Block
 
-Condition := Term (=|>|<|!) Term
+Condition := Term (=|!) Term
 
 Term := TOK_IDENTIIFIER | TERM_NUMBER
 
@@ -42,3 +42,11 @@ if (c = 30) {
  }
 }
 ```
+References: 
+
+https://craftinginterpreters.com/scanning.html
+https://lesleylai.info/en/ast-in-cpp-part-1-variant/
+https://en.wikipedia.org/wiki/Abstract_syntax_tree
+https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl02.html
+
+https://youtu.be/pupdmHjzrTI?feature=shared
