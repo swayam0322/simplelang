@@ -130,7 +130,7 @@ bool parseDeclaration(vector<Token>::iterator &token, vector<Token>::iterator en
             if (token != tokens.end() && token->type == TOK_SEMICOLON)
             {
                 program->addNode(make_shared<DeclarationNode>(var_name));
-                std::cout << "Added a declaration node\n";
+                // std::cout << "Added a declaration node\n";
                 return true;
             }
         }
@@ -148,7 +148,7 @@ shared_ptr<ASTNode> parseExpression(vector<Token>::iterator &token, vector<Token
     token++;
 
     // Expression assignment
-    if (token->type == TOK_PLUS | token->type == TOK_MINUS)
+    if (token->type == TOK_PLUS || token->type == TOK_MINUS)
     {
         string op = token->val;
         token++;
@@ -177,7 +177,7 @@ bool parseAssignment(vector<Token>::iterator &token, vector<Token>::iterator end
             if (token != tokens.end() && token->type == TOK_SEMICOLON)
             {
                 program->addNode(make_shared<AssignmentNode>(var_name, expression));
-                cout << "Added an assignment Node\n";
+                // cout << "Added an assignment Node\n";
                 return true;
             }
         }
@@ -203,11 +203,10 @@ shared_ptr<BlockNode> parseBlock(vector<Token>::iterator &token, vector<Token>::
         }
         else
         {
-            cout << "Unexpected token: " << token->val << '\n';
+            // cout << "Unexpected token: " << '\n';
             token++;
         }
     }
-    token++;
     return blk;
 }
 
@@ -247,10 +246,11 @@ bool parseConditional(vector<Token>::iterator &token, vector<Token>::iterator en
                         if (token->type == TOK_LEFT_BRACE)
                         {
                             token++;
-                            cout << "New Block opened\n";
+                            // cout << "New Block opened"<<token->val<<'\n';
                             auto block = parseBlock(token, tokens.end(), make_shared<BlockNode>());
                             program->addNode(make_shared<ConditionalNode>(condition, block));
-                            cout << "Added Conditional Block\n";
+                            token++;
+                            // cout << "Added Conditional Block"<<"\n";
                             return true;
                         }
                     }
@@ -309,7 +309,7 @@ vector<Token> tokenize(ifstream &file)
             c++;
             break;
         case '>':
-            addToken(TOK_GREATER, "<");
+            addToken(TOK_GREATER, ">");
             c++;
             break;
         case '=':
@@ -434,7 +434,11 @@ int main(int argc, char *argv[])
             continue;
         else if (parseConditional(token, tokens.end(), program))
             continue;
-        break;
+        else if(token->type != TOK_EOF) break;
+        else{
+            cout<<"Unexpected token "<< token->val;
+            break;
+        }
     }
     printTree(program);
     // for(auto tok : tokens){
