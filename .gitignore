@@ -33,3 +33,7 @@
 
 # Visual Studio Code directory
 .vscode/*
+
+# simplelang build outputs
+simple
+generated.asm

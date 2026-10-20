@@ -98,15 +98,10 @@ public:
         : comp(comp), LHS(move(lhs)), RHS(move(rhs)) {}
 };
 
+// Same statement list as RootNode. A second `nodes` vector here used to hide
+// the base one, so block statements and the generator looked at different lists.
 class BlockNode : public RootNode
 {
-public:
-    vector<shared_ptr<ASTNode>> nodes;
-
-    void addNode(shared_ptr<ASTNode> stmt)
-    {
-        nodes.push_back(stmt);
-    }
 };
 
 class ConditionalNode : public ASTNode
@@ -187,23 +182,16 @@ bool parseConditional(vector<Token>::iterator &token, vector<Token>::iterator en
 
 shared_ptr<BlockNode> parseBlock(vector<Token>::iterator &token, vector<Token>::iterator end, shared_ptr<BlockNode> blk)
 {
-    while (token->type != TOK_RIGHT_BRACE)
+    while (token != tokens.end() && token->type != TOK_RIGHT_BRACE && token->type != TOK_EOF)
     {
-        if (parseDeclaration(token, tokens.end(), blk))
-            token++;
-        else if (parseAssignment(token, tokens.end(), blk))
-            token++;
-        else if (parseConditional(token, tokens.end(), blk))
-            token++;
-        else if (token->type == TOK_EOF)
-        {
+        // On a match the iterator sits on ';' or '}'. On a mismatch it sits on
+        // the unexpected token. Step once either way, and never step past EOF.
+        parseDeclaration(token, tokens.end(), blk)
+            || parseAssignment(token, tokens.end(), blk)
+            || parseConditional(token, tokens.end(), blk);
+        if (token == tokens.end() || token->type == TOK_EOF)
             break;
-        }
-        else
-        {
-            // cout << "Unexpected token: " << '\n';
-            token++;
-        }
+        token++;
     }
     return blk;
 }
@@ -246,7 +234,9 @@ bool parseConditional(vector<Token>::iterator &token, vector<Token>::iterator en
                             // cout << "New Block opened"<<token->val<<'\n';
                             auto block = parseBlock(token, tokens.end(), make_shared<BlockNode>());
                             program->addNode(make_shared<ConditionalNode>(condition, block));
-                            token++;
+                            // Leave the iterator on '}', same as assignments leave it on ';'.
+                            // The caller consumes that token. Consuming it here skipped the
+                            // next statement and, at end of file, walked past TOK_EOF.
                             // cout << "Added Conditional Block"<<"\n";
                             return true;
                         }
@@ -265,7 +255,8 @@ vector<Token> tokenize(ifstream &file)
     {
         tokens.push_back({.type = t, .val = s});
     };
-    for (auto c = istreambuf_iterator<char>(file); c != istreambuf_iterator<char>();)
+    auto end = istreambuf_iterator<char>();
+    for (auto c = istreambuf_iterator<char>(file); c != end;)
     {
         switch (*c)
         {
@@ -318,9 +309,9 @@ vector<Token> tokenize(ifstream &file)
             break;
         default:
             string buffer;
-            if (isalpha(*c))
+            if (isalpha(static_cast<unsigned char>(*c)))
             {
-                while (isalnum(*c))
+                while (c != end && isalnum(static_cast<unsigned char>(*c)))
                 {
                     buffer.push_back(*c);
                     c++;
@@ -332,9 +323,9 @@ vector<Token> tokenize(ifstream &file)
                 else
                     addToken(TOK_IDENTIFIER, buffer);
             }
-            else if (isdigit(*c))
+            else if (isdigit(static_cast<unsigned char>(*c)))
             {
-                while (isdigit(*c))
+                while (c != end && isdigit(static_cast<unsigned char>(*c)))
                 {
                     buffer.push_back(*c);
                     c++;
@@ -342,7 +333,10 @@ vector<Token> tokenize(ifstream &file)
                 addToken(TOK_NUMBER, buffer);
             }
             else
+            {
                 addToken(TOK_UNKNOWN, "$");
+                c++;
+            }
         }
     }
     addToken(TOK_EOF, "\0");
@@ -352,16 +346,24 @@ vector<Token> tokenize(ifstream &file)
 static int blockCount = 0;
 static vector<string> symbols;
 
-void generate(shared_ptr<RootNode> program, string label = "_start")
+void generate(shared_ptr<RootNode> program, string label = "_start", ofstream *out = nullptr)
 {
-    ofstream file;
-    file.open ("generated.asm");
-    file<<".text\n\n";
-    file<<label<<":\n";
+    ofstream owned;
+    bool top = out == nullptr;
+    if (top)
+    {
+        owned.open("generated.asm");
+        out = &owned;
+        blockCount = 0;
+        symbols.clear();
+        (*out) << ".text\n\n";
+    }
+    ofstream &file = *out;
+    file << label << ":\n";
     for (auto node : program->nodes)
     {
         if (auto dec_node = dynamic_pointer_cast<DeclarationNode>(node))
-            symbols.push_back(dec_node->name); 
+            symbols.push_back(dec_node->name);
         else if (auto assign_node = dynamic_pointer_cast<AssignmentNode>(node))
         {
             if (auto exp_node = dynamic_pointer_cast<BinExprNode>(assign_node->exp))
@@ -399,17 +401,26 @@ void generate(shared_ptr<RootNode> program, string label = "_start")
             else if (auto lhs = dynamic_pointer_cast<VariableNode>(condition->LHS))
                 file<<"lda %"<< lhs->name << '\n';
             file<<"cmp\n";
+            // Take an id before recursing so nested blocks get distinct labels.
+            int id = blockCount++;
+            string blockLabel = "BLOCK" + to_string(id);
+            string endLabel = "ENDBLOCK" + to_string(id);
+            // "=" emits jnz and "!" emits jz, both aimed at the end label,
+            // so a failed test skips the block.
             if(condition->comp == "=")
-                    file<<"jz %BLOCK"<<blockCount;
-                else 
-                    file<<"jnz %BLOCK"<<blockCount;
+                file<<"jnz %"<<endLabel<<"\n";
+            else
+                file<<"jz %"<<endLabel<<"\n";
             auto block = dynamic_pointer_cast<BlockNode>(cond_node->block);
-            generate(block, "BLOCK"+blockCount);
-            blockCount++;
+            if (block)
+                generate(block, blockLabel, out);
+            file<<endLabel<<":\n";
         }
         else
             cerr << "Unknown Node Type\n";
     }
+    if (!top)
+        return;
     file<<"\nEND:\nhlt\n";
     file<<"\n.data\n";
     for(auto i:symbols)
@@ -417,14 +428,16 @@ void generate(shared_ptr<RootNode> program, string label = "_start")
 }
 
 void parse(vector<Token> &tokens, shared_ptr<RootNode> program){
-    for (auto token = tokens.begin(); token->type != TOK_EOF; token++)
+    for (auto token = tokens.begin(); token != tokens.end() && token->type != TOK_EOF;)
     {
-        if (parseDeclaration(token, tokens.end(), program))
+        if (parseDeclaration(token, tokens.end(), program)
+            || parseAssignment(token, tokens.end(), program)
+            || parseConditional(token, tokens.end(), program))
+        {
+            if (token != tokens.end() && token->type != TOK_EOF)
+                token++;
             continue;
-        else if (parseAssignment(token, tokens.end(), program))
-            continue;
-        else if (parseConditional(token, tokens.end(), program))
-            continue;
+        }
         else if (token->type != TOK_EOF)
             break;
         else
